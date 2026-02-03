@@ -1,0 +1,80 @@
+# Reddit Video Maker Bot Configuration
+# Copy this file to config.toml and fill in your credentials
+
+[reddit.creds]
+client_id = "your_reddit_client_id"
+client_secret = "your_reddit_client_secret"
+username = "your_reddit_username"
+password = "your_reddit_password"
+2fa = false
+
+[reddit.thread]
+random = true
+subreddit = "AskReddit"
+post_id = ""
+max_comment_length = 500
+min_comment_length = 1
+post_lang = ""
+min_comments = 20
+
+[ai]
+ai_similarity_enabled = false
+ai_similarity_keywords = ""
+
+[settings]
+allow_nsfw = false
+theme = "dark"
+times_to_run = 1
+opacity = 0.9
+storymode = false
+storymodemethod = 1
+storymode_max_length = 1000
+resolution_w = 1080
+resolution_h = 1920
+zoom = 1
+channel_name = "Reddit Tales"
+
+[settings.background]
+background_video = "minecraft"
+background_audio = "lofi"
+background_audio_volume = 0.15
+enable_extra_audio = false
+background_thumbnail = false
+background_thumbnail_font_family = "arial"
+background_thumbnail_font_size = 96
+background_thumbnail_font_color = "255,255,255"
+
+[settings.tts]
+# TTS Provider: qwentts, elevenlabs, tiktok, googletranslate, awspolly, streamlabspolly, openai
+voice_choice = "qwentts"
+random_voice = true
+silence_duration = 0.3
+no_emojis = false
+
+# Qwen TTS Settings (default)
+qwen_api_url = "http://localhost:8080"
+qwen_email = "your_email@example.com"
+qwen_password = "your_password"
+qwen_speaker = "Vivian"
+qwen_language = "English"
+qwen_instruct = "Warm, friendly, conversational."
+
+# OpenAI TTS Settings
+openai_api_url = "https://api.openai.com/v1/"
+openai_api_key = ""
+openai_voice_name = "alloy"
+openai_model = "tts-1"
+
+# ElevenLabs Settings
+elevenlabs_voice_name = "Bella"
+elevenlabs_api_key = ""
+
+# TikTok TTS Settings
+tiktok_voice = "en_us_001"
+tiktok_sessionid = ""
+
+# AWS Polly Settings
+aws_polly_voice = "Matthew"
+
+# Streamlabs Polly Settings
+streamlabs_polly_voice = "Matthew"

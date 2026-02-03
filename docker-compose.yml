@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  reddit-video-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: reddit-video-bot
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+      - ./results:/app/results
+      - ./assets:/app/assets
+    environment:
+      - REDDIT_BOT_GUI=true
+      # Reddit Credentials (can also be set in config.toml)
+      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID:-}
+      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET:-}
+      - REDDIT_USERNAME=${REDDIT_USERNAME:-}
+      - REDDIT_PASSWORD=${REDDIT_PASSWORD:-}
+      - REDDIT_2FA=${REDDIT_2FA:-false}
+      # Reddit Thread Settings
+      - REDDIT_SUBREDDIT=${REDDIT_SUBREDDIT:-AskReddit}
+      - REDDIT_RANDOM=${REDDIT_RANDOM:-true}
+      # TTS Settings (Qwen TTS)
+      - TTS_VOICE_CHOICE=${TTS_VOICE_CHOICE:-qwentts}
+      - QWEN_API_URL=${QWEN_API_URL:-http://qwen-tts:8080}
+      - QWEN_EMAIL=${QWEN_EMAIL:-}
+      - QWEN_PASSWORD=${QWEN_PASSWORD:-}
+      - QWEN_SPEAKER=${QWEN_SPEAKER:-Vivian}
+      - QWEN_LANGUAGE=${QWEN_LANGUAGE:-English}
+    networks:
+      - reddit-bot-network
+    depends_on:
+      - qwen-tts
+
+  qwen-tts:
+    image: qwen-tts-server:latest
+    container_name: qwen-tts
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - TTS_MODEL=qwen3-tts
+    networks:
+      - reddit-bot-network
+    # Uncomment if using GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # Optional: Progress GUI only mode
+  progress-gui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: reddit-video-gui
+    restart: unless-stopped
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+      - ./results:/app/results
+      - ./assets:/app/assets
+    environment:
+      - REDDIT_BOT_GUI=true
+    command: python progress_gui.py
+    networks:
+      - reddit-bot-network
+    profiles:
+      - gui-only
+
+networks:
+  reddit-bot-network:
+    driver: bridge
+
+volumes:
+  results:
+  assets:

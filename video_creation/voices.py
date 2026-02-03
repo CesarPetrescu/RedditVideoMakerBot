@@ -7,7 +7,7 @@ from TTS.elevenlabs import elevenlabs
 from TTS.engine_wrapper import TTSEngine
 from TTS.GTTS import GTTS
 from TTS.openai_tts import OpenAITTS
-from TTS.pyttsx import pyttsx
+from TTS.qwen_tts import QwenTTS
 from TTS.streamlabs_polly import StreamlabsPolly
 from TTS.TikTok import TikTok
 from utils import settings
@@ -20,7 +20,7 @@ TTSProviders = {
     "AWSPolly": AWSPolly,
     "StreamlabsPolly": StreamlabsPolly,
     "TikTok": TikTok,
-    "pyttsx": pyttsx,
+    "QwenTTS": QwenTTS,
     "ElevenLabs": elevenlabs,
     "OpenAI": OpenAITTS,
 }
