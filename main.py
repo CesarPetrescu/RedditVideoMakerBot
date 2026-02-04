@@ -11,9 +11,8 @@ from pathlib import Path
 from subprocess import Popen
 from typing import Dict, NoReturn, Optional
 
-from prawcore import ResponseException
-
 from reddit.subreddit import get_subreddit_threads
+from reddit.scraper import RedditScraperError
 from utils import settings
 from utils.cleanup import cleanup
 from utils.console import print_markdown, print_step, print_substep
@@ -218,9 +217,10 @@ if __name__ == "__main__":
             main()
     except KeyboardInterrupt:
         shutdown()
-    except ResponseException:
-        print_markdown("## Invalid credentials")
-        print_markdown("Please check your credentials in the config.toml file")
+    except RedditScraperError as e:
+        print_markdown("## Reddit Scraper Error")
+        print_markdown(f"Error fetching Reddit data: {e}")
+        print_markdown("This may be due to rate limiting. Try again later or increase request_delay in config.")
         shutdown()
     except Exception as err:
         config["settings"]["tts"]["tiktok_sessionid"] = "REDACTED"

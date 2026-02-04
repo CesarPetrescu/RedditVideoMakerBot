@@ -1,9 +1,10 @@
 # Reddit Video Maker Bot
 
-Automatically generate short-form videos from Reddit posts. Supports multiple TTS engines including Qwen3 TTS.
+Automatically generate short-form videos from Reddit posts. No Reddit API credentials required.
 
 ## Features
 
+- **No Reddit API Keys Needed**: Uses Reddit's public `.json` endpoints (no OAuth required)
 - **Multiple TTS Engines**: Qwen3 TTS (default), OpenAI TTS, ElevenLabs, TikTok, Google Translate, AWS Polly
 - **Real-time Progress GUI**: Web-based dashboard showing video generation progress with live updates
 - **Docker Support**: Fully containerized with docker-compose for easy deployment
@@ -20,7 +21,7 @@ cd RedditVideoMakerBot
 
 # Create your config file
 cp config.example.toml config.toml
-# Edit config.toml with your credentials
+# Edit config.toml with your TTS settings (no Reddit credentials needed!)
 
 # Start with docker-compose
 docker-compose up -d
@@ -57,6 +58,10 @@ playwright install-deps
 # Download spaCy model (for story mode)
 python -m spacy download en_core_web_sm
 
+# Copy and configure
+cp config.example.toml config.toml
+# Edit config.toml with your settings
+
 # Run the bot
 python main.py
 ```
@@ -65,11 +70,22 @@ python main.py
 
 Create a `config.toml` file in the project root. The bot will prompt you for settings on first run.
 
-### Reddit API Setup
+### Reddit Settings (No API Keys Required!)
 
-1. Go to [Reddit Apps](https://www.reddit.com/prefs/apps)
-2. Create a new app with type "script"
-3. Note your `client_id` and `client_secret`
+The bot scrapes Reddit's public `.json` endpoints - no API credentials needed:
+
+```toml
+[reddit.scraper]
+user_agent = "python:reddit_video_bot:1.0"  # Customize to avoid rate limiting
+request_delay = 2.0  # Seconds between requests
+
+[reddit.thread]
+subreddit = "AskReddit"  # Target subreddit
+post_id = ""             # Optional: specific post ID
+min_comments = 20        # Minimum comments required
+```
+
+**Note**: This approach is subject to Reddit's rate limiting. If you experience 429 errors, increase `request_delay`.
 
 ### Qwen TTS Setup (Default)
 
@@ -84,6 +100,23 @@ qwen_password = "your_password"
 qwen_speaker = "Vivian"  # Options: Chelsie, Ethan, Vivian, Asher, Aria, Oliver, Emma, Noah, Sophia
 qwen_language = "English"
 qwen_instruct = "Warm, friendly, conversational."
+```
+
+**Qwen TTS API Usage:**
+
+```bash
+# 1. Login to get token
+TOKEN=$(curl -s http://localhost:8080/api/agent/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"YOUR_PASSWORD"}' \
+  | python -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+
+# 2. Generate TTS
+curl -s http://localhost:8080/api/qwen-tts \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello!", "language": "English", "speaker": "Vivian", "instruct": "Warm, friendly."}' \
+  --output output.wav
 ```
 
 ### TTS Options
@@ -140,14 +173,8 @@ services:
 
 ### Environment Variables
 
-All config options can be set via environment variables:
-
 | Variable | Description |
 |----------|-------------|
-| `REDDIT_CLIENT_ID` | Reddit API client ID |
-| `REDDIT_CLIENT_SECRET` | Reddit API client secret |
-| `REDDIT_USERNAME` | Reddit username |
-| `REDDIT_PASSWORD` | Reddit password |
 | `REDDIT_SUBREDDIT` | Target subreddit |
 | `TTS_VOICE_CHOICE` | TTS provider |
 | `QWEN_API_URL` | Qwen TTS server URL |
@@ -166,7 +193,9 @@ RedditVideoMakerBot/
 │   ├── openai_tts.py      # OpenAI TTS provider
 │   └── ...
 ├── video_creation/         # Video generation
-├── reddit/                 # Reddit API
+├── reddit/                 # Reddit scraper (no-auth)
+│   ├── scraper.py         # Public .json endpoint scraper
+│   └── subreddit.py       # Thread fetcher
 ├── utils/                  # Utilities
 │   ├── progress.py        # Progress tracking
 │   └── settings.py        # Configuration
@@ -181,9 +210,25 @@ RedditVideoMakerBot/
 
 Generated videos are saved to `results/{subreddit}/`.
 
+## Limitations
+
+### Reddit Scraper Limitations
+
+- **Rate Limiting**: Reddit may throttle or block requests. Increase `request_delay` if needed.
+- **~1000 Post Cap**: Reddit listings are capped at ~1000 posts. Run daily for continuous collection.
+- **Incomplete Comments**: Large threads may have missing comments (\"more\" placeholders are skipped).
+- **Policy Compliance**: Respect Reddit's Terms of Service when using scraped content.
+
 ## Troubleshooting
 
 ### Common Issues
+
+**Rate Limited (429 errors)**
+```toml
+# Increase delay in config.toml
+[reddit.scraper]
+request_delay = 5.0  # Try 5+ seconds
+```
 
 **FFmpeg not found**
 ```bash

@@ -15,14 +15,9 @@ services:
       - ./assets:/app/assets
     environment:
       - REDDIT_BOT_GUI=true
-      # Reddit Credentials (can also be set in config.toml)
-      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID:-}
-      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET:-}
-      - REDDIT_USERNAME=${REDDIT_USERNAME:-}
-      - REDDIT_PASSWORD=${REDDIT_PASSWORD:-}
-      - REDDIT_2FA=${REDDIT_2FA:-false}
-      # Reddit Thread Settings
+      # Reddit Scraper Settings (no API keys required!)
       - REDDIT_SUBREDDIT=${REDDIT_SUBREDDIT:-AskReddit}
+      - REDDIT_REQUEST_DELAY=${REDDIT_REQUEST_DELAY:-2.0}
       - REDDIT_RANDOM=${REDDIT_RANDOM:-true}
       # TTS Settings (Qwen TTS)
       - TTS_VOICE_CHOICE=${TTS_VOICE_CHOICE:-qwentts}

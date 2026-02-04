@@ -4,22 +4,16 @@ set -e
 # Create config from environment if not exists
 if [ ! -f /app/config.toml ]; then
     echo "Creating config.toml from template..."
-
-    # Check if all required environment variables are set
-    if [ -z "$REDDIT_CLIENT_ID" ] || [ -z "$REDDIT_CLIENT_SECRET" ] || [ -z "$REDDIT_USERNAME" ] || [ -z "$REDDIT_PASSWORD" ]; then
-        echo "Warning: Reddit credentials not set via environment variables."
-        echo "Please set REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME, REDDIT_PASSWORD"
-        echo "Or mount your config.toml file to /app/config.toml"
-    fi
+    echo "Note: No Reddit API credentials required - using public .json endpoints"
 
     # Create basic config from environment
     cat > /app/config.toml << EOF
-[reddit.creds]
-client_id = "${REDDIT_CLIENT_ID:-}"
-client_secret = "${REDDIT_CLIENT_SECRET:-}"
-username = "${REDDIT_USERNAME:-}"
-password = "${REDDIT_PASSWORD:-}"
-2fa = ${REDDIT_2FA:-false}
+# Reddit Video Maker Bot Configuration
+# No Reddit API credentials required - uses public .json endpoints
+
+[reddit.scraper]
+user_agent = "${REDDIT_USER_AGENT:-python:reddit_video_bot:1.0}"
+request_delay = ${REDDIT_REQUEST_DELAY:-2.0}
 
 [reddit.thread]
 random = ${REDDIT_RANDOM:-true}
