@@ -1,9 +1,11 @@
 import json
+import os
 import re
 from pathlib import Path
 from typing import Dict, Final
 
 import translators
+from PIL import Image, ImageDraw, ImageFont
 from playwright.sync_api import ViewportSize, sync_playwright
 from rich.progress import track
 
@@ -13,8 +15,115 @@ from utils.console import is_noninteractive
 from utils.imagenarator import imagemaker
 from utils.playwright import clear_cookie_by_name
 from utils.videos import save_data
+from utils.voice import sanitize_text
 
 __all__ = ["get_screenshots_of_reddit_posts"]
+
+CARD_PADDING = 48
+
+
+def _wrap_text(draw, text, font, max_width):
+    lines = []
+    for paragraph in text.splitlines():
+        words = paragraph.split()
+        if not words:
+            lines.append("")
+            continue
+        line = ""
+        for word in words:
+            test_line = f"{line} {word}".strip()
+            if draw.textlength(test_line, font=font) <= max_width:
+                line = test_line
+            else:
+                if line:
+                    lines.append(line)
+                line = word
+        if line:
+            lines.append(line)
+    return lines
+
+
+def _render_card(text, subtitle, width, theme_bg, text_color, accent_color):
+    font_body = ImageFont.truetype(os.path.join("fonts", "Roboto-Regular.ttf"), 36)
+    font_sub = ImageFont.truetype(os.path.join("fonts", "Roboto-Bold.ttf"), 28)
+
+    dummy = Image.new("RGBA", (width, 10), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(dummy)
+    max_text_width = width - CARD_PADDING * 2
+    lines = _wrap_text(draw, text, font_body, max_text_width)
+    line_height = draw.textbbox((0, 0), "Ag", font=font_body)[3]
+    header_height = draw.textbbox((0, 0), subtitle, font=font_sub)[3] + 16
+    text_height = len(lines) * (line_height + 8)
+    height = header_height + text_height + CARD_PADDING * 2
+
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    radius = 24
+    draw.rounded_rectangle(
+        [(0, 0), (width, height)],
+        radius=radius,
+        fill=theme_bg,
+        outline=(0, 0, 0, 40),
+        width=2,
+    )
+    x = CARD_PADDING
+    y = CARD_PADDING
+    draw.text((x, y), subtitle, font=font_sub, fill=accent_color)
+    y += header_height
+    for line in lines:
+        draw.text((x, y), line, font=font_body, fill=text_color)
+        y += line_height + 8
+    return image
+
+
+def _render_story_image(text, width, theme_bg, text_color):
+    font_body = ImageFont.truetype(os.path.join("fonts", "Roboto-Regular.ttf"), 44)
+    dummy = Image.new("RGBA", (width, 10), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(dummy)
+    max_text_width = width - CARD_PADDING * 2
+    lines = _wrap_text(draw, text, font_body, max_text_width)
+    line_height = draw.textbbox((0, 0), "Ag", font=font_body)[3]
+    text_height = len(lines) * (line_height + 10)
+    height = text_height + CARD_PADDING * 2
+
+    image = Image.new("RGBA", (width, height), theme_bg)
+    draw = ImageDraw.Draw(image)
+    y = CARD_PADDING
+    for line in lines:
+        draw.text((CARD_PADDING, y), line, font=font_body, fill=text_color)
+        y += line_height + 10
+    return image
+
+
+def _render_custom_ui(reddit_object: dict, screenshot_num: int, theme_bg, text_color):
+    reddit_id = re.sub(r"[^\w\s-]", "", reddit_object["thread_id"])
+    out_dir = Path(f"assets/temp/{reddit_id}/png")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    width = int(settings.config["settings"]["resolution_w"] * 0.9)
+    subreddit = reddit_object.get("subreddit", "reddit")
+    accent = (125, 200, 255) if theme_bg[0] < 128 else (40, 90, 160)
+
+    storymode = settings.config["settings"]["storymode"]
+    if storymode:
+        story_text = reddit_object.get("thread_post", "")
+        if isinstance(story_text, list):
+            story_text = " ".join(story_text)
+        story_text = sanitize_text(story_text)
+        story_img = _render_story_image(story_text, width, theme_bg, text_color)
+        story_img.save(out_dir / "story_content.png")
+        return
+
+    comments = reddit_object.get("comments", [])
+    total = screenshot_num + 1
+    for idx in track(range(total), "Rendering UI cards..."):
+        comment = comments[idx] if idx < len(comments) else {}
+        body = sanitize_text(comment.get("comment_body", ""))
+        if not body:
+            body = "Comment unavailable."
+        subtitle = f"r/{subreddit}"
+        card = _render_card(body, subtitle, width, theme_bg, text_color, accent)
+        card.save(out_dir / f"comment_{idx}.png")
 
 
 def get_screenshots_of_reddit_posts(reddit_object: dict, screenshot_num: int):
@@ -68,6 +177,11 @@ def get_screenshots_of_reddit_posts(reddit_object: dict, screenshot_num: int):
             txtclr=txtcolor,
             transparent=transparent,
         )
+
+    use_screenshots = os.environ.get("REDDIT_BOT_USE_SCREENSHOTS", "false").lower() == "true"
+    if not use_screenshots:
+        print_substep("Rendering custom UI cards...")
+        return _render_custom_ui(reddit_object, screenshot_num, bgcolor, txtcolor)
 
     screenshot_num: int
     with sync_playwright() as p:

@@ -1,4 +1,6 @@
 import json
+import os
+import subprocess
 import random
 import re
 from pathlib import Path
@@ -80,6 +82,9 @@ def download_background_video(background_config: Tuple[str, str, str, Any]):
     uri, filename, credit, _ = background_config
     if Path(f"assets/backgrounds/video/{credit}-{filename}").is_file():
         return
+    if os.environ.get("REDDIT_BOT_NO_DOWNLOADS", "false").lower() == "true":
+        print_substep("Background download disabled. Will use generated fallback video.")
+        return
     print_step(
         "We need to download the backgrounds videos. they are fairly large but it's only done once. 😎"
     )
@@ -102,6 +107,9 @@ def download_background_audio(background_config: Tuple[str, str, str]):
     # note: make sure the file name doesn't include an - in it
     uri, filename, credit = background_config
     if Path(f"assets/backgrounds/audio/{credit}-{filename}").is_file():
+        return
+    if os.environ.get("REDDIT_BOT_NO_DOWNLOADS", "false").lower() == "true":
+        print_substep("Background download disabled. Will use generated fallback audio.")
         return
     print_step(
         "We need to download the backgrounds audio. they are fairly large but it's only done once. 😎"
@@ -129,40 +137,82 @@ def chop_background(background_config: Dict[str, Tuple], video_length: int, redd
         video_length (int): Length of the clip where the background footage is to be taken out of
     """
     thread_id = re.sub(r"[^\w\s-]", "", reddit_object["thread_id"])
+    Path(f"assets/temp/{thread_id}").mkdir(parents=True, exist_ok=True)
+    W: Final[int] = int(settings.config["settings"]["resolution_w"])
+    H: Final[int] = int(settings.config["settings"]["resolution_h"])
+
+    def create_fallback_video():
+        print_substep("Creating fallback background video...")
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"color=c=black:s={W}x{H}:r=30",
+            "-t",
+            str(video_length),
+            f"assets/temp/{thread_id}/background.mp4",
+        ]
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    def create_fallback_audio():
+        print_substep("Creating fallback background audio (silence)...")
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-t",
+            str(video_length),
+            f"assets/temp/{thread_id}/background.mp3",
+        ]
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     if settings.config["settings"]["background"][f"background_audio_volume"] == 0:
         print_step("Volume was set to 0. Skipping background audio creation . . .")
     else:
         print_step("Finding a spot in the backgrounds audio to chop...✂️")
         audio_choice = f"{background_config['audio'][2]}-{background_config['audio'][1]}"
-        background_audio = AudioFileClip(f"assets/backgrounds/audio/{audio_choice}")
-        start_time_audio, end_time_audio = get_start_and_end_times(
-            video_length, background_audio.duration
-        )
-        background_audio = background_audio.subclipped(start_time_audio, end_time_audio)
-        background_audio.write_audiofile(f"assets/temp/{thread_id}/background.mp3")
+        audio_path = Path(f"assets/backgrounds/audio/{audio_choice}")
+        if not audio_path.exists():
+            create_fallback_audio()
+        else:
+            background_audio = AudioFileClip(str(audio_path))
+            start_time_audio, end_time_audio = get_start_and_end_times(
+                video_length, background_audio.duration
+            )
+            background_audio = background_audio.subclipped(start_time_audio, end_time_audio)
+            background_audio.write_audiofile(f"assets/temp/{thread_id}/background.mp3")
 
     print_step("Finding a spot in the backgrounds video to chop...✂️")
     video_choice = f"{background_config['video'][2]}-{background_config['video'][1]}"
-    background_video = VideoFileClip(f"assets/backgrounds/video/{video_choice}")
-    start_time_video, end_time_video = get_start_and_end_times(
-        video_length, background_video.duration
-    )
-    # Extract video subclip
-    try:
-        with VideoFileClip(f"assets/backgrounds/video/{video_choice}") as video:
-            new = video.subclipped(start_time_video, end_time_video)
-            new.write_videofile(f"assets/temp/{thread_id}/background.mp4")
-
-    except (OSError, IOError):  # ffmpeg issue see #348
-        print_substep("FFMPEG issue. Trying again...")
-        ffmpeg_extract_subclip(
-            f"assets/backgrounds/video/{video_choice}",
-            start_time_video,
-            end_time_video,
-            outputfile=f"assets/temp/{thread_id}/background.mp4",
+    video_path = Path(f"assets/backgrounds/video/{video_choice}")
+    if not video_path.exists():
+        create_fallback_video()
+        print_substep("Fallback background video created.", style="bold green")
+    else:
+        background_video = VideoFileClip(str(video_path))
+        start_time_video, end_time_video = get_start_and_end_times(
+            video_length, background_video.duration
         )
-    print_substep("Background video chopped successfully!", style="bold green")
+        # Extract video subclip
+        try:
+            with VideoFileClip(str(video_path)) as video:
+                new = video.subclipped(start_time_video, end_time_video)
+                new.write_videofile(f"assets/temp/{thread_id}/background.mp4")
+
+        except (OSError, IOError):  # ffmpeg issue see #348
+            print_substep("FFMPEG issue. Trying again...")
+            ffmpeg_extract_subclip(
+                str(video_path),
+                start_time_video,
+                end_time_video,
+                outputfile=f"assets/temp/{thread_id}/background.mp4",
+            )
+        print_substep("Background video chopped successfully!", style="bold green")
     return background_config["video"][2]
 
 
