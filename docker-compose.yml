@@ -10,8 +10,8 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # Config is read-write so UI can save settings
-      - ./config.toml:/app/config.toml
+      # Mount config directory (not single file) to avoid Docker creating directory when file missing
+      - ./config:/app/config-dir
       - ./results:/app/results
       - ./assets:/app/assets
     environment:
