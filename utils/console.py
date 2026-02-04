@@ -1,3 +1,4 @@
+import os
 import re
 
 from rich.columns import Columns
@@ -8,6 +9,13 @@ from rich.panel import Panel
 from rich.text import Text
 
 console = Console()
+
+
+def is_noninteractive() -> bool:
+    return (
+        os.environ.get("REDDIT_BOT_NONINTERACTIVE", "false").lower() == "true"
+        or os.environ.get("REDDIT_BOT_GUI", "false").lower() == "true"
+    )
 
 
 def print_markdown(text) -> None:
@@ -48,6 +56,8 @@ def handle_input(
     default=NotImplemented,
     optional=False,
 ):
+    if is_noninteractive():
+        raise RuntimeError("Interactive input requested while running in non-interactive mode.")
     if optional:
         console.print(message + "\n[green]This is an optional value. Do you want to skip it? (y/n)")
         if input().casefold().startswith("y"):

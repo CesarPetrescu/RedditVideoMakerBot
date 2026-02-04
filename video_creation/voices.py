@@ -11,7 +11,7 @@ from TTS.qwen_tts import QwenTTS
 from TTS.streamlabs_polly import StreamlabsPolly
 from TTS.TikTok import TikTok
 from utils import settings
-from utils.console import print_step, print_table
+from utils.console import print_step, print_table, is_noninteractive
 
 console = Console()
 
@@ -40,6 +40,10 @@ def save_text_to_mp3(reddit_obj) -> Tuple[int, int]:
     if str(voice).casefold() in map(lambda _: _.casefold(), TTSProviders):
         text_to_mp3 = TTSEngine(get_case_insensitive_key_value(TTSProviders, voice), reddit_obj)
     else:
+        if is_noninteractive():
+            raise RuntimeError(
+                f"Invalid TTS provider '{voice}'. Please set settings.tts.voice_choice to a supported value."
+            )
         while True:
             print_step("Please choose one of the following TTS providers: ")
             print_table(TTSProviders)

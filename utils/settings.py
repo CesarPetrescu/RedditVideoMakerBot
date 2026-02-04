@@ -165,6 +165,119 @@ If you see any prompts, that means that you have unset/incorrectly set variables
     return config
 
 
+def _is_leaf_check(node: dict) -> bool:
+    return any(
+        key in node
+        for key in (
+            "optional",
+            "default",
+            "type",
+            "options",
+            "regex",
+            "nmin",
+            "nmax",
+            "example",
+            "explanation",
+            "oob_error",
+            "input_error",
+        )
+    )
+
+
+def _validate_value(value, checks):
+    incorrect = False
+    cast_value = value
+
+    if value == {}:
+        incorrect = True
+    if not incorrect and "type" in checks:
+        try:
+            cast_value = eval(checks["type"])(value)  # fixme remove eval
+        except Exception:
+            incorrect = True
+
+    if (
+        not incorrect and "options" in checks and cast_value not in checks["options"]
+    ):
+        incorrect = True
+    if (
+        not incorrect
+        and "regex" in checks
+        and (
+            (isinstance(cast_value, str) and re.match(checks["regex"], cast_value) is None)
+            or not isinstance(cast_value, str)
+        )
+    ):
+        incorrect = True
+
+    if (
+        not incorrect
+        and not hasattr(cast_value, "__iter__")
+        and (
+            ("nmin" in checks and checks["nmin"] is not None and cast_value < checks["nmin"])
+            or ("nmax" in checks and checks["nmax"] is not None and cast_value > checks["nmax"])
+        )
+    ):
+        incorrect = True
+    if (
+        not incorrect
+        and hasattr(cast_value, "__iter__")
+        and (
+            ("nmin" in checks and checks["nmin"] is not None and len(cast_value) < checks["nmin"])
+            or ("nmax" in checks and checks["nmax"] is not None and len(cast_value) > checks["nmax"])
+        )
+    ):
+        incorrect = True
+
+    return cast_value, incorrect
+
+
+def _apply_defaults_and_validate(template_node: dict, config_node: dict, path: list, errors: list):
+    for key, checks in template_node.items():
+        if isinstance(checks, dict) and _is_leaf_check(checks):
+            value = config_node.get(key, {})
+            cast_value, incorrect = _validate_value(value, checks)
+            if incorrect:
+                if "default" in checks:
+                    config_node[key] = checks["default"]
+                elif checks.get("optional") is True and (value == {} or value == "" or value is None):
+                    config_node[key] = value
+                else:
+                    errors.append(".".join(path + [key]))
+            else:
+                config_node[key] = cast_value
+        else:
+            if key not in config_node or not isinstance(config_node[key], dict):
+                config_node[key] = {}
+            _apply_defaults_and_validate(checks, config_node[key], path + [key], errors)
+
+
+def check_toml_noninteractive(template_file, config_file) -> Tuple[bool, Dict, list]:
+    global config
+    config = None
+    try:
+        template = toml.load(template_file)
+    except Exception as error:
+        console.print(f"[red bold]Encountered error when trying to load {template_file}: {error}")
+        return False, {}, []
+
+    try:
+        config = toml.load(config_file)
+    except Exception:
+        config = {}
+
+    errors = []
+    _apply_defaults_and_validate(template, config, [], errors)
+
+    try:
+        with open(config_file, "w") as f:
+            toml.dump(config, f)
+    except Exception:
+        pass
+
+    return config if not errors else False, config, errors
+
+
 if __name__ == "__main__":
     directory = Path().absolute()
     check_toml(f"{directory}/utils/.config.template.toml", "config.toml")

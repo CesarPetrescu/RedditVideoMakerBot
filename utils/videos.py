@@ -1,10 +1,19 @@
 import json
 import time
+from pathlib import Path
 
 from praw.models import Submission
 
 from utils import settings
 from utils.console import print_step
+
+VIDEOS_JSON_PATH = Path("video_creation/data/videos.json")
+
+
+def ensure_videos_json():
+    VIDEOS_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if not VIDEOS_JSON_PATH.exists():
+        VIDEOS_JSON_PATH.write_text("[]", encoding="utf-8")
 
 
 def check_done(
@@ -19,7 +28,8 @@ def check_done(
     Returns:
         Submission|None: Reddit object in args
     """
-    with open("./video_creation/data/videos.json", "r", encoding="utf-8") as done_vids_raw:
+    ensure_videos_json()
+    with VIDEOS_JSON_PATH.open("r", encoding="utf-8") as done_vids_raw:
         done_videos = json.load(done_vids_raw)
     for video in done_videos:
         if video["id"] == str(redditobj):
@@ -43,7 +53,8 @@ def save_data(subreddit: str, filename: str, reddit_title: str, reddit_id: str, 
         @param reddit_id:
         @param reddit_title:
     """
-    with open("./video_creation/data/videos.json", "r+", encoding="utf-8") as raw_vids:
+    ensure_videos_json()
+    with VIDEOS_JSON_PATH.open("r+", encoding="utf-8") as raw_vids:
         done_vids = json.load(raw_vids)
         if reddit_id in [video["id"] for video in done_vids]:
             return  # video already done but was specified to continue anyway in the config file

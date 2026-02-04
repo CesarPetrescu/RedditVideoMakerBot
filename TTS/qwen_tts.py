@@ -88,7 +88,7 @@ class QwenTTS:
                 )
 
             data = response.json()
-            self.token = data.get("access_token")
+            self.token = data.get("access_token") or data.get("token")
             if not self.token:
                 raise RuntimeError("Qwen TTS authentication failed: No access_token in response")
 
@@ -128,8 +128,8 @@ class QwenTTS:
         language = tts_config.get("qwen_language", "English")
         instruct = tts_config.get("qwen_instruct", "Warm, friendly, conversational.")
 
-        # Build TTS request
-        tts_url = f"{self.api_base_url}/api/qwen-tts"
+        # Build TTS request (support both legacy and current endpoints)
+        tts_url = f"{self.api_base_url}/api/qwen-tts/api/tts"
         payload = {
             "text": text,
             "language": language,
@@ -149,6 +149,11 @@ class QwenTTS:
                 self._authenticate()
                 headers["Authorization"] = f"Bearer {self.token}"
                 response = requests.post(tts_url, json=payload, headers=headers, timeout=120)
+
+            # Fallback to legacy endpoint if needed
+            if response.status_code in (404, 405):
+                legacy_url = f"{self.api_base_url}/api/qwen-tts"
+                response = requests.post(legacy_url, json=payload, headers=headers, timeout=120)
 
             if response.status_code != 200:
                 raise RuntimeError(

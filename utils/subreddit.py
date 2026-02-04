@@ -1,9 +1,9 @@
 import json
-from os.path import exists
 
 from utils import settings
 from utils.ai_methods import sort_by_similarity
 from utils.console import print_substep
+from utils.videos import ensure_videos_json, VIDEOS_JSON_PATH
 
 
 def get_subreddit_undone(submissions: list, subreddit, times_checked=0, similarity_scores=None):
@@ -24,10 +24,8 @@ def get_subreddit_undone(submissions: list, subreddit, times_checked=0, similari
         )
 
     # recursively checks if the top submission in the list was already done.
-    if not exists("./video_creation/data/videos.json"):
-        with open("./video_creation/data/videos.json", "w+") as f:
-            json.dump([], f)
-    with open("./video_creation/data/videos.json", "r", encoding="utf-8") as done_vids_raw:
+    ensure_videos_json()
+    with VIDEOS_JSON_PATH.open("r", encoding="utf-8") as done_vids_raw:
         done_videos = json.load(done_vids_raw)
     for i, submission in enumerate(submissions):
         if already_done(done_videos, submission):

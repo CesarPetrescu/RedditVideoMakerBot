@@ -5,7 +5,6 @@ Complete web interface for configuration, video generation, and progress trackin
 """
 import os
 import json
-import subprocess
 import threading
 import shutil
 from pathlib import Path
@@ -43,7 +42,6 @@ app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max upload
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 
 # Track running generation process
-generation_process = None
 generation_thread = None
 
 
@@ -375,9 +373,9 @@ def api_get_videos():
 @app.route("/api/generate", methods=["POST"])
 def api_generate_video():
     """Start video generation."""
-    global generation_process, generation_thread
+    global generation_thread
 
-    if generation_process and generation_process.poll() is None:
+    if generation_thread and generation_thread.is_alive():
         return jsonify({'success': False, 'message': 'Generation already in progress'}), 400
 
     config = load_config()
@@ -385,20 +383,13 @@ def api_generate_video():
         return jsonify({'success': False, 'message': 'Please configure settings first'}), 400
 
     def run_generation():
-        global generation_process
         try:
-            generation_process = subprocess.Popen(
-                ['python', 'main.py'],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                cwd=str(Path(__file__).parent)
-            )
-            generation_process.wait()
+            from main import run_from_gui
+            run_from_gui()
         except Exception as e:
             print(f"Generation error: {e}")
 
-    generation_thread = threading.Thread(target=run_generation)
+    generation_thread = threading.Thread(target=run_generation, daemon=True)
     generation_thread.start()
 
     return jsonify({'success': True, 'message': 'Video generation started'})
@@ -407,21 +398,19 @@ def api_generate_video():
 @app.route("/api/generate/stop", methods=["POST"])
 def api_stop_generation():
     """Stop video generation."""
-    global generation_process
+    if generation_thread and generation_thread.is_alive():
+        return jsonify({
+            'success': False,
+            'message': 'Stop is not supported in GUI mode yet. Wait for completion or restart the server.'
+        }), 400
 
-    if generation_process and generation_process.poll() is None:
-        generation_process.terminate()
-        return jsonify({'success': True, 'message': 'Generation stopped'})
-
-    return jsonify({'success': False, 'message': 'No generation in progress'})
+    return jsonify({'success': False, 'message': 'No generation in progress'}), 400
 
 
 @app.route("/api/generate/status", methods=["GET"])
 def api_generation_status():
     """Get generation status."""
-    global generation_process
-
-    running = generation_process and generation_process.poll() is None
+    running = generation_thread and generation_thread.is_alive()
     return jsonify({
         'running': running,
         'progress': progress_tracker.get_status()

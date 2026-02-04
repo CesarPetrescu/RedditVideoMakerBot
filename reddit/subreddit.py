@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from reddit.scraper import get_scraper, RedditPost, RedditComment, RedditScraperError
 from utils import settings
 from utils.ai_methods import sort_by_similarity
-from utils.console import print_step, print_substep
+from utils.console import print_step, print_substep, is_noninteractive
 from utils.posttextparser import posttextparser
 from utils.videos import check_done
 from utils.voice import sanitize_text
@@ -59,6 +59,10 @@ def get_subreddit_threads(POST_ID: Optional[str] = None) -> Dict[str, Any]:
     subreddit_name = settings.config["reddit"]["thread"].get("subreddit", "")
 
     if not subreddit_name:
+        if is_noninteractive():
+            raise RedditScraperError(
+                "Subreddit is not set in config. Please set reddit.thread.subreddit."
+            )
         subreddit_name = input("What subreddit would you like to pull from? ")
         subreddit_name = re.sub(r"^r/", "", subreddit_name.strip())
         if not subreddit_name:

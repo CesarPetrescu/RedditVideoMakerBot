@@ -162,6 +162,61 @@ def start_gui_server():
     print_substep("Progress GUI available at http://localhost:5000", style="bold green")
 
 
+def run_from_gui() -> None:
+    """Run generation from the web GUI without exiting the process."""
+    os.environ["REDDIT_BOT_NONINTERACTIVE"] = "true"
+    if sys.version_info.major != 3 or sys.version_info.minor not in [10, 11, 12]:
+        raise RuntimeError(
+            "This program requires Python 3.10, 3.11, or 3.12. "
+            "Please install a compatible Python version and try again."
+        )
+
+    ffmpeg_install()
+    directory = Path().absolute()
+    valid, config, errors = settings.check_toml_noninteractive(
+        f"{directory}/utils/.config.template.toml", f"{directory}/config.toml"
+    )
+    if not valid:
+        missing = ", ".join(errors) if errors else "unknown settings"
+        raise RuntimeError(
+            f"Missing or invalid config values: {missing}. Please configure settings first."
+        )
+
+    if config["settings"]["tts"]["voice_choice"].lower() == "qwentts":
+        if not config["settings"]["tts"].get("qwen_email") or not config["settings"]["tts"].get("qwen_password"):
+            raise RuntimeError(
+                "Qwen TTS requires 'qwen_email' and 'qwen_password' in config. Please configure these settings."
+            )
+
+    if (
+        not settings.config["settings"]["tts"]["tiktok_sessionid"]
+        or settings.config["settings"]["tts"]["tiktok_sessionid"] == ""
+    ) and config["settings"]["tts"]["voice_choice"].lower() == "tiktok":
+        raise RuntimeError(
+            "TikTok voice requires a sessionid! Check documentation on how to obtain one."
+        )
+
+    try:
+        if config["reddit"]["thread"]["post_id"]:
+            for index, post_id in enumerate(config["reddit"]["thread"]["post_id"].split("+")):
+                index += 1
+                print_step(
+                    f'on the {index}{("st" if index % 10 == 1 else ("nd" if index % 10 == 2 else ("rd" if index % 10 == 3 else "th")))} post of {len(config["reddit"]["thread"]["post_id"].split("+"))}'
+                )
+                main(post_id)
+                Popen("cls" if name == "nt" else "clear", shell=True).wait()
+        elif config["settings"]["times_to_run"]:
+            run_many(config["settings"]["times_to_run"])
+        else:
+            main()
+    except KeyboardInterrupt:
+        if "reddit_id" in globals():
+            print_markdown("## Clearing temp files")
+            cleanup(reddit_id)
+        print("Exiting...")
+        return
+
+
 if __name__ == "__main__":
     if sys.version_info.major != 3 or sys.version_info.minor not in [10, 11, 12]:
         print(
