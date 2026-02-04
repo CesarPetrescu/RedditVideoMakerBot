@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Handle case where Docker creates config.toml as a directory when host file doesn't exist
+if [ -d /app/config.toml ]; then
+    echo "Removing empty config.toml directory (created by Docker volume mount)..."
+    rmdir /app/config.toml 2>/dev/null || rm -rf /app/config.toml
+fi
+
 # Create config from environment if not exists
 if [ ! -f /app/config.toml ]; then
     echo "Creating config.toml from template..."
