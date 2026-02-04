@@ -1,19 +1,30 @@
 #!/bin/bash
 set -e
 
-# Handle case where Docker creates config.toml as a directory when host file doesn't exist
-if [ -d /app/config.toml ]; then
-    echo "Removing empty config.toml directory (created by Docker volume mount)..."
-    rmdir /app/config.toml 2>/dev/null || rm -rf /app/config.toml
-fi
+# Config directory is mounted at /app/config-dir to avoid Docker creating a directory
+# when the host file doesn't exist. We use a symlink to maintain compatibility.
 
-# Create config from environment if not exists
-if [ ! -f /app/config.toml ]; then
+CONFIG_DIR="/app/config-dir"
+CONFIG_FILE="/app/config.toml"
+CONFIG_IN_DIR="$CONFIG_DIR/config.toml"
+
+# Ensure the config directory exists
+mkdir -p "$CONFIG_DIR"
+
+# Remove any existing config.toml (file or directory) in /app to start fresh
+rm -rf "$CONFIG_FILE" 2>/dev/null || true
+
+# Check if config exists in the mounted directory
+if [ -f "$CONFIG_IN_DIR" ]; then
+    echo "Using existing config from $CONFIG_IN_DIR"
+    # Create symlink so the app can use /app/config.toml
+    ln -sf "$CONFIG_IN_DIR" "$CONFIG_FILE"
+else
     echo "Creating config.toml from template..."
     echo "Note: No Reddit API credentials required - using public .json endpoints"
 
-    # Create basic config from environment
-    cat > /app/config.toml << EOF
+    # Create basic config from environment in the mounted directory
+    cat > "$CONFIG_IN_DIR" << EOF
 # Reddit Video Maker Bot Configuration
 # No Reddit API credentials required - uses public .json endpoints
 
@@ -80,6 +91,9 @@ qwen_language = "${QWEN_LANGUAGE:-English}"
 qwen_instruct = "${QWEN_INSTRUCT:-Warm, friendly, conversational.}"
 EOF
     echo "Config file created successfully!"
+
+    # Create symlink so the app can use /app/config.toml
+    ln -sf "$CONFIG_IN_DIR" "$CONFIG_FILE"
 fi
 
 # Execute the command passed to docker run
