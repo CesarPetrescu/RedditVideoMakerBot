@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reddit Video Maker Bot</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.0/socket.io.min.js"></script>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="logo">
+            <h2>Reddit Video Bot</h2>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/" class="active">Dashboard</a></li>
+            <li><a href="/settings">Settings</a></li>
+            <li><a href="/backgrounds">Backgrounds</a></li>
+            <li><a href="/videos">Videos</a></li>
+            <li><a href="/progress">Progress</a></li>
+        </ul>
+    </nav>
+
+    <main class="content">
+        <header>
+            <h1>Dashboard</h1>
+            <div class="status-indicator" id="status-indicator">
+                <span class="dot"></span>
+                <span id="status-text">Ready</span>
+            </div>
+        </header>
+
+        <div class="dashboard-grid">
+            <!-- Quick Actions -->
+            <div class="card">
+                <h3>Quick Actions</h3>
+                <div class="action-buttons">
+                    <button id="btn-generate" class="btn btn-primary btn-large">
+                        Generate Video
+                    </button>
+                    <button id="btn-stop" class="btn btn-danger btn-large" disabled>
+                        Stop Generation
+                    </button>
+                </div>
+            </div>
+
+            <!-- Current Config -->
+            <div class="card">
+                <h3>Current Configuration</h3>
+                <div class="config-summary" id="config-summary">
+                    <p>Loading...</p>
+                </div>
+                <a href="/settings" class="btn btn-secondary">Edit Settings</a>
+            </div>
+
+            <!-- Progress -->
+            <div class="card card-wide">
+                <h3>Current Progress</h3>
+                <div id="progress-container">
+                    <div class="no-progress">
+                        <p>No video generation in progress</p>
+                        <p class="hint">Click "Generate Video" to start</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Videos -->
+            <div class="card card-wide">
+                <h3>Recent Videos</h3>
+                <div id="recent-videos">
+                    <p>Loading...</p>
+                </div>
+                <a href="/videos" class="btn btn-secondary">View All Videos</a>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            loadConfig();
+            loadRecentVideos();
+            initProgressSocket();
+
+            document.getElementById('btn-generate').addEventListener('click', startGeneration);
+            document.getElementById('btn-stop').addEventListener('click', stopGeneration);
+        });
+
+        function loadConfig() {
+            fetch('/api/config')
+                .then(r => r.json())
+                .then(config => {
+                    const summary = document.getElementById('config-summary');
+                    if (config && config.reddit) {
+                        summary.innerHTML = `
+                            <div class="config-item">
+                                <strong>Subreddit:</strong> r/${config.reddit?.thread?.subreddit || 'Not set'}
+                            </div>
+                            <div class="config-item">
+                                <strong>TTS:</strong> ${config.settings?.tts?.voice_choice || 'Not set'}
+                            </div>
+                            <div class="config-item">
+                                <strong>Theme:</strong> ${config.settings?.theme || 'dark'}
+                            </div>
+                            <div class="config-item">
+                                <strong>Resolution:</strong> ${config.settings?.resolution_w || 1080}x${config.settings?.resolution_h || 1920}
+                            </div>
+                        `;
+                    } else {
+                        summary.innerHTML = '<p class="warning">Not configured. <a href="/settings">Click here to configure.</a></p>';
+                    }
+                });
+        }
+
+        function loadRecentVideos() {
+            fetch('/api/videos')
+                .then(r => r.json())
+                .then(data => {
+                    const container = document.getElementById('recent-videos');
+                    if (data.videos && data.videos.length > 0) {
+                        const recent = data.videos.slice(0, 3);
+                        container.innerHTML = recent.map(v => `
+                            <div class="video-item">
+                                <span class="video-name">${v.name}</span>
+                                <span class="video-subreddit">r/${v.subreddit}</span>
+                                <a href="${v.path}" target="_blank" class="btn btn-small">View</a>
+                            </div>
+                        `).join('');
+                    } else {
+                        container.innerHTML = '<p class="hint">No videos generated yet</p>';
+                    }
+                });
+        }
+
+        function initProgressSocket() {
+            const socket = io('/progress');
+            socket.on('progress_update', (data) => {
+                updateProgress(data);
+                updateGenerationStatus(data);
+            });
+        }
+
+        function updateProgress(data) {
+            const container = document.getElementById('progress-container');
+            if (data.current_job) {
+                const job = data.current_job;
+                container.innerHTML = `
+                    <div class="progress-info">
+                        <div class="progress-title">${job.title}</div>
+                        <div class="progress-subreddit">r/${job.subreddit}</div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" style="width: ${job.overall_progress}%"></div>
+                        </div>
+                        <div class="progress-percent">${Math.round(job.overall_progress)}%</div>
+                        <div class="progress-steps">
+                            ${job.steps.map(s => `
+                                <div class="step ${s.status}">
+                                    <span class="step-icon">${getStepIcon(s.status)}</span>
+                                    <span class="step-name">${s.name}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="no-progress">
+                        <p>No video generation in progress</p>
+                        <p class="hint">Click "Generate Video" to start</p>
+                    </div>
+                `;
+            }
+        }
+
+        function updateGenerationStatus(data) {
+            const btnGenerate = document.getElementById('btn-generate');
+            const btnStop = document.getElementById('btn-stop');
+            const statusIndicator = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+
+            if (data.current_job && data.current_job.status === 'in_progress') {
+                btnGenerate.disabled = true;
+                btnStop.disabled = false;
+                statusIndicator.classList.add('running');
+                statusText.textContent = 'Generating...';
+            } else {
+                btnGenerate.disabled = false;
+                btnStop.disabled = true;
+                statusIndicator.classList.remove('running');
+                statusText.textContent = 'Ready';
+            }
+        }
+
+        function getStepIcon(status) {
+            switch(status) {
+                case 'completed': return '✓';
+                case 'in_progress': return '◐';
+                case 'failed': return '✗';
+                default: return '○';
+            }
+        }
+
+        function startGeneration() {
+            fetch('/api/generate', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('Video generation started!', 'success');
+                    } else {
+                        showNotification(data.message, 'error');
+                    }
+                });
+        }
+
+        function stopGeneration() {
+            fetch('/api/generate/stop', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    showNotification(data.message, data.success ? 'success' : 'error');
+                });
+        }
+
+        function showNotification(message, type) {
+            const notif = document.createElement('div');
+            notif.className = `notification ${type}`;
+            notif.textContent = message;
+            document.body.appendChild(notif);
+            setTimeout(() => notif.remove(), 3000);
+        }
+    </script>
+</body>
+</html>

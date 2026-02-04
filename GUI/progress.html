@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reddit Video Maker - Progress</title>
+    <link rel="stylesheet" href="/static/css/progress.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.0/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Reddit Video Maker Bot</h1>
+            <p class="subtitle">Real-time Progress Tracker</p>
+        </header>
+
+        <main>
+            <!-- Current Job Section -->
+            <section id="current-job" class="card">
+                <h2>Current Job</h2>
+                <div id="no-job" class="no-job">
+                    <div class="waiting-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12,6 12,12 16,14"></polyline>
+                        </svg>
+                    </div>
+                    <p>Waiting for video generation to start...</p>
+                    <p class="hint">Start the bot with: <code>python main.py</code></p>
+                </div>
+                <div id="job-info" class="job-info hidden">
+                    <div class="job-header">
+                        <div class="job-title">
+                            <span class="subreddit" id="job-subreddit"></span>
+                            <h3 id="job-title"></h3>
+                        </div>
+                        <div class="job-status">
+                            <span id="job-status-badge" class="status-badge"></span>
+                        </div>
+                    </div>
+
+                    <!-- Overall Progress -->
+                    <div class="overall-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="overall-progress-fill"></div>
+                        </div>
+                        <span class="progress-text" id="overall-progress-text">0%</span>
+                    </div>
+
+                    <!-- Steps -->
+                    <div class="steps-container" id="steps-container">
+                        <!-- Steps will be dynamically inserted here -->
+                    </div>
+
+                    <!-- Preview Section -->
+                    <div class="preview-section" id="preview-section">
+                        <h4>Preview</h4>
+                        <div class="preview-container" id="preview-container">
+                            <div class="preview-placeholder">
+                                <p>Preview will appear here</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Job History Section -->
+            <section id="history" class="card">
+                <h2>Recent Jobs</h2>
+                <div id="history-list" class="history-list">
+                    <p class="no-history">No completed jobs yet</p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Reddit Video Maker Bot - Progress GUI</p>
+            <div class="connection-status">
+                <span class="status-dot" id="connection-dot"></span>
+                <span id="connection-text">Connecting...</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="/static/js/progress.js"></script>
+</body>
+</html>
